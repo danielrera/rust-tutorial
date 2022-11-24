@@ -72,13 +72,68 @@ struct Person {
     name: String,
     age: u8,
     phones: Vec<String>,
-    height :f32
 }
+
+
+fn get_xx(data:MLDataContainer)->Option<Node>{
+    let mut arr = data.element_statistics.nodes; 
+    for node in arr.iter(){
+        if node.a.contains_key("XX"){
+            let val = node.a.get("XX"); 
+            match val{
+                Some(val)=>{
+                    if val.as_str() == "true"{
+                        return Some(node.clone());
+                    }
+                },
+                None=>{},
+            }
+        }
+    }
+    return None;
+}
+
+fn get_vec_hashmaps(data:MLDataContainer)->Vec<HashMap<String,String>>{
+    let mut vec = Vec::new();
+    for node in data.element_statistics.nodes.iter(){
+        vec.push(node.a.clone());
+    }
+    return vec;
+}
+ 
+fn correlation(data1:MLDataContainer, data2:MLDataContainer)->Option<Vec<f64>>{
+    let mut node_xx = get_xx(data1);
+    match node_xx {
+        Some(node_xx)=>{
+            let size = (node_xx.a.len()-5) as f64;
+            let mut vec_nodes = get_vec_hashmaps(data2);
+            let correlations = vec_nodes.iter().map(|f|
+            {
+                let mut sum = 0.0;
+                for (k,v) in node_xx.a.iter(){
+                    match k.as_str(){
+                        "XX"|"LT"|"TP"|"WH"|"HT" => sum += 0.0,
+                        _ => sum += f.iter().filter(|(fk,fv)|*fk == k && *fv == v).count() as f64,
+                    }
+                }
+                sum/size
+            }).collect();
+            return Some(correlations);
+        },
+        None =>{
+            return None;
+        },
+    }
+}
+
+
 
 #[cfg(test)]
 mod test{
     use std::path::Path;
-    use crate::ml_data::{Person, read_ml_json};
+    use crate::ml_data::{Person, read_ml_json, get_xx};
+
+    use super::correlation;
 
     #[test]
     fn json_test(){
@@ -93,7 +148,6 @@ mod test{
         }"#;
 
         let p: Person = serde_json::from_str(data).unwrap();
-
         // Do things just like with any other Rust data structure.
         println!("Please call {} at the number {}", p.name, p.phones[0]);
     }
@@ -101,9 +155,42 @@ mod test{
 
     #[test]
     fn load_json_test(){
-        let path = Path::new("resources/1645511997141_M8INRNFV6O_curr.jso");
+        let path = Path::new("resources/1645511997141_M8INRNFV6O_curr.json");
         let data = read_ml_json(&path);
+        let node_xx = get_xx(data);
+        match node_xx {
+            Some(node_xx)=>{
+                println!("{:?}", node_xx.a);
+            },
+            None => {
+                println!("No hay ningún nodo con XX")
+            },
+        }
+    }
 
-        println!("{}", data.element_statistics.nodes.len());
+    #[test]
+    fn correlation_test(){
+        let path = Path::new("resources/1663154348643_8ZGUJJLLWV/ml_data/1663154348643_8ZGUJJLLWV.json");
+        let data1 = read_ml_json(&path);
+        let data2 = read_ml_json(&path);
+        let correlations = correlation(data1, data2);
+        match correlations{
+            Some(correlations)=>{
+                println!("{:?}",correlations);
+                let max = correlations.iter().max_by(|a, b| a.total_cmp(&b));
+                match  max{
+                    Some(max)=>{
+                        println!("Correlación máxima = {}",max);
+                    },
+                    None=>{
+                        println!("No hay máximo en el vector de correlaciones");
+                    },
+                }
+
+            }
+            None =>{
+                println!("El primer archivo no tiene un elemento XX");
+            }
+        }
     }
 }
